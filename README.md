@@ -39,12 +39,17 @@ The system simulates data trading processes across different market scenarios (h
 ## Project Structure
 
 ```
-├── DataPrice.sol          # Smart contract source code
-├── web3DataPrice.py       # Testing script
 ├── build/                 # Contract compilation output directory (create manually)
 │   └── contracts/
 │       └── DataPrice.json # Contract ABI file (compile manually)
+├── contracts/
+│   └── DataPrice.sol      # Smart contract source code
+├── migrations/
+│   └── 2_deploy_contracts.js          
 ├── output/                # Experiment results output directory (created automatically)
+│   ├── scenario_performance.csv
+│   └── experiment_results.csv
+├── web3DataPrice.py       # Testing script
 └── README.md              # Project documentation
 ```
 
