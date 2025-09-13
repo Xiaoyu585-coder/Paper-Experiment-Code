@@ -25,7 +25,7 @@ contract DataPrice {
     struct Product {
         string productId; // Product ID
         uint256 benchmarkPrice; // Benchmark price(P_off)
-        uint256 qualityFactor; // Data quality(Q)
+        uint256 qualityFactor; // Data quality(Q_p)
         MarketPeriod period;  // Mark market period
     }
     // Interactive structure, reduce parameter transmission
@@ -233,9 +233,9 @@ contract DataPrice {
                 sellerBehavioral: 0
             });
             
-            // 计算匹配结果
+            // Calculate the matching results
             uint256 matchPrice = _calculateMatch(buyer, sellers[j], context);
-            // 记录匹配详情事件
+            // Record the matching details into the event.
             emit MatchedDetail(
                 buyer.id,
                 sellers[j].id,
@@ -250,7 +250,7 @@ contract DataPrice {
                 context.benchmarkPrice                       // benchmarkPrice
             );
             
-            // 更新最佳匹配
+            // Update the best match
             if (matchPrice > 0 && matchPrice < bestMatchPrice) {
                 bestMatchPrice = matchPrice;
                 bestSellerId = sellers[j].id;
@@ -258,7 +258,7 @@ contract DataPrice {
             }
         }
         
-        // 触发匹配事件并更新卖家匹配次数
+        // Trigger the matching event and update the number of times the seller has been matched.
         if (bestMatchPrice != type(uint256).max) {
             emit Matched(buyer.id, bestSellerId, bestMatchPrice);
             sellers[bestSellerIndex].matchCount++;
@@ -268,38 +268,38 @@ contract DataPrice {
             }
         }
     }
-    //perfomMatching内部计算
-    // 第一步：完全分离验证阶段（严格顺序执行）
+    //The internal calculation of the perfomMatching function
+    // Verification Phase
     function _calculateMatch(Buyer storage buyer, Seller storage seller, NegotiationContext memory context) internal view returns (uint256) {
-        // === 阶段1：质量验证和保留价验证 ===
+        // Quality verification and reserve price verification
         if (!_validatePreConditions(context.qualityFactor, buyer.qualityRequest, seller.reservePrice, buyer.reservePrice)) {
-            return 0; // 提前终止
+            return 0; // Early termination
         }
-        // === 阶段2：模式分支计算候选价格 ===
+        // Mode branching calculation of candidate prices
         uint256 candidatePrice = _calculateCandidatePrice(buyer, seller, context);
-        // === 阶段3：价格范围和满足阈值验证 ===
+        // Price range and satisfaction threshold verification
         return _validatePostConditions(candidatePrice, seller.reservePrice, buyer.reservePrice, seller.lossAversion, buyer.lossAversion) ? candidatePrice : 0;
     }
 
-    // 辅助函数1：前置条件验证（质量+保留价）
+    // Auxiliary function: Precondition verification (quality + reserve price)
     function _validatePreConditions(
         uint256 qualityFactor,
         uint256 buyerQualityReq,
         uint256 sellerReserve,
         uint256 buyerReserve
     ) private pure returns (bool) {
-        // 质量验证 (Q_p > Q_re)
+        // Quality verification (Q_p > Q_re)
         if (qualityFactor <= buyerQualityReq) {
             return false;
         }
-        // 保留价验证 (P_res^b > P_res^s)
+        // Verification of reserve price (P_res^b > P_res^s)
         if (buyerReserve <= sellerReserve) {
             return false;
         }
         return true;
     }
 
-    // 辅助函数2：候选价格计算（纯模式分支）
+    // Auxiliary function: Candidate price calculation (mode branching)
     function _calculateCandidatePrice(
         Buyer storage buyer,
         Seller storage seller,
@@ -310,18 +310,18 @@ contract DataPrice {
         } else if (currentMode == PricingMode.NASH) {
             return (seller.reservePrice + buyer.reservePrice) / 2;
         } else if (currentMode == PricingMode.BASELINE) {
-            // 计算买家首次报价
+            // Calculate the buyer's initial offer
             context.buyerFirstOffer = calculateBuyerPrice(buyer.initialPrice, context.benchmarkPrice, buyer.trust);
-            // 边界保护
+            // Boundary protection
             context.adjustedSellerFirstBid = boundValue(seller.firstBid, seller.reservePrice, buyer.reservePrice);
             context.buyerFirstOffer = boundValue(context.buyerFirstOffer, seller.reservePrice, buyer.reservePrice);
-            // 边界范围
+            // Boundary scope
             context.diff = abs(uint256(buyer.reservePrice), uint256(seller.reservePrice));
-            // 直接匹配检查
+            // Direct matching check
             if (context.adjustedSellerFirstBid <= context.buyerFirstOffer) {
                 return (context.adjustedSellerFirstBid + context.buyerFirstOffer) / 2;
             }
-            // 计算均衡价格
+            // Calculate the equilibrium price
             return calculateEquilibriumPrice(
                 context.buyerFirstOffer,
                 context.adjustedSellerFirstBid,
@@ -331,7 +331,7 @@ contract DataPrice {
         }
         return 0;
     }
-    // 辅助函数3：后置条件验证（价格范围+满足阈值）
+    // Auxiliary function: Postcondition verification (price range + meets threshold)
     function _validatePostConditions(
         uint256 candidatePrice,
         uint256 sellerReserve,
@@ -339,13 +339,13 @@ contract DataPrice {
         uint256 sellerlossAversion,
         uint256 buyerlossAversion
     ) private pure returns (bool) {
-        // 价格范围验证 (P_res^s <= P_on <= P_res^b)
+        // Price range verification
         if (candidatePrice <= sellerReserve - sellerReserve* sellerlossAversion/50000 || candidatePrice >= buyerReserve + buyerReserve* buyerlossAversion/50000) {
             return false;
         }
         return true;
     }
-    // 辅助函数4：边界保护
+    // Auxiliary function: Boundary protection
     function boundValue(
         uint256 value,
         uint256 minBound,
@@ -355,7 +355,7 @@ contract DataPrice {
         if (value > maxBound) return maxBound - (maxBound - minBound)/10;
         return value;
     }
-    // 计算买家报价
+    // Auxiliary: Calculate the buyer's offer price
     function calculateBuyerPrice(uint256 initialPrice, uint256 benchmarkPrice, uint256 trust) internal pure returns (uint256) {
         if (benchmarkPrice >= initialPrice) {
             return initialPrice + (trust * (benchmarkPrice - initialPrice)) / 10000;
@@ -363,7 +363,7 @@ contract DataPrice {
             return initialPrice - (trust * (initialPrice - benchmarkPrice)) / 10000;
         }
     }
-    // 计算卖家出价
+    // Auxiliary: Calculate the seller's bid
     function calculateSellerPrice(uint256 initialPrice, uint256 benchmarkPrice, uint256 trust) internal pure returns (uint256) {
         if (benchmarkPrice >= initialPrice) {
             return initialPrice + (trust * (benchmarkPrice - initialPrice)) / 10000;
@@ -371,21 +371,21 @@ contract DataPrice {
             return initialPrice - (trust * (initialPrice - benchmarkPrice)) / 10000;
         }
     }
-    // 计算行为调整因子Behavioral
+    // Auxiliary: Calculate Behavioral Adjustment Factor
     function calculateBehavioralCoefficient(uint256 reservePrice, uint256 firstPrice, uint256 lossAversion, uint256 diff) internal pure returns (uint256) {
         uint256 priceDiff = abs(uint256(reservePrice), uint256(firstPrice));
         uint256 denominator = priceDiff + diff;
         if (denominator == 0) {
-            return 1; // 极端无偏离场景
+            return 1; // Extremely un-deviated situation
         }
-        return lossAversion * diff / denominator; // 结果范围 1-100
+        return lossAversion * diff / denominator;
     }
-    // 计算均衡价（添加最小值保护）
+    // Auxiliary: Calculate the equilibrium price
     function calculateEquilibriumPrice(uint256 buyerFirstOffer, uint256 sellerFirstBid, uint256 buyerBehavioral, uint256 sellerBehavioral) internal pure returns (uint256) {
-        // 添加最小行为调整系数保护
-        if (buyerBehavioral < 1) buyerBehavioral = 1; // 1%最小值
+        // Auxiliary: Add minimum coefficient protection
+        if (buyerBehavioral < 1) buyerBehavioral = 1; // 1% minimum value
         if (sellerBehavioral < 1) sellerBehavioral = 1;
-        // 优化数学表达式
+
         uint256 priceDiff = sellerFirstBid - buyerFirstOffer;
         uint256 numerator = priceDiff * (10000 - buyerBehavioral) * 10000;
         uint256 denominator = 100000000 - (buyerBehavioral * sellerBehavioral);
@@ -395,7 +395,7 @@ contract DataPrice {
         uint256 adjustment = numerator / denominator;
         return buyerFirstOffer + adjustment;
     }
-    // Calculate the absolute value
+    // Auxiliary: Calculate the absolute value
     function abs(uint256 a, uint256 b) internal pure returns (uint256) {
         if (a >= b){
             return uint256(a - b);
@@ -404,4 +404,5 @@ contract DataPrice {
             return uint256(b - a);
         }
     }
+
 }
